@@ -1,6 +1,9 @@
 {
   "name": "@constellation/config",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "type": "module",
-  "exports": { "./prettier": "./prettier.json" }
+  "description": "Shared base config for constellation apps (metis, kairos).",
+  "exports": {
+    "./tsconfig.base.json": "./tsconfig.base.json"
+  }
 }
