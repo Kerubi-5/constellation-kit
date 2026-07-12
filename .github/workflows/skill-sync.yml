@@ -40,9 +40,11 @@ jobs:
           private-key: ${{ secrets.SKILL_SYNC_APP_PRIVATE_KEY }}
           owner: ${{ inputs.owner }}
           repositories: ${{ inputs.target-repo }}
-      - name: Sync skill and open a PR in ${{ inputs.target-repo }}
+      - name: Sync skill directly to ${{ inputs.target-repo }}
         uses: docker://ghcr.io/kerubi-5/skill-sync:latest
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           SKILL_SYNC_GIT_NAME: ${{ inputs.git-name }}
           SKILL_SYNC_GIT_EMAIL: ${{ inputs.git-email }}
+          # Commit straight to the skill repo default branch — no PR to merge.
+          SKILL_SYNC_DIRECT_COMMIT: "true"
