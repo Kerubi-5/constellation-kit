@@ -14,6 +14,7 @@ independent deploys and blast radius.
 | Workflow | Purpose | Caller supplies |
 | --- | --- | --- |
 | [`skill-sync.yml`](.github/workflows/skill-sync.yml) | Sync a skill folder out to its standalone repo, open a PR | `target-repo`, `git-name`, `git-email` |
+| [`e2e.yml`](.github/workflows/e2e.yml) | Browser e2e on an ephemeral Supabase + Playwright | `supabase-project-id`, optional `pre-build` |
 
 A caller repo keeps a thin workflow that owns its `on:` triggers and delegates
 the job:
@@ -36,7 +37,6 @@ jobs:
 
 ## Roadmap
 
-- `e2e.yml` reusable workflow (Supabase + Playwright) — the largest duplication.
 - `app-ci.yml`, `release-cli.yml` reusable workflows.
 - `packages/config` — shared ESLint rules, Prettier, tsconfig base (git-installable).
 - `packages/deploy` — `vercel-ignore-build`, `env:check`.

@@ -1,0 +1,81 @@
+name: e2e (reusable)
+
+# Browser e2e against a real, ephemeral Supabase (migrations applied fresh)
+# + Playwright. Called by metis and kairos. The two repos differed in only:
+#   - the docker log container suffix (the local supabase project_id)
+#   - an optional pre-build step (kairos bootstraps agent-auth env)
+# The env-write uses SECRET_KEY with a SERVICE_ROLE_KEY fallback, which covers
+# both repos' key naming.
+on:
+  workflow_call:
+    inputs:
+      supabase-project-id:
+        description: Local supabase project_id (config.toml) — names the log containers.
+        required: true
+        type: string
+      pre-build:
+        description: Shell command run after install, before build (e.g. env bootstrap). Optional.
+        required: false
+        type: string
+        default: ""
+      node-version:
+        required: false
+        type: string
+        default: "22"
+
+jobs:
+  e2e:
+    name: browser e2e (real Supabase)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: pnpm
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Start local Supabase (applies migrations)
+        run: supabase start
+      - name: Write env from local stack
+        run: |
+          eval "$(supabase status -o env | grep -E '^(API_URL|ANON_KEY|SECRET_KEY|SERVICE_ROLE_KEY)=')"
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL"
+            echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$ANON_KEY"
+            echo "SUPABASE_SECRET_KEY=${SECRET_KEY:-$SERVICE_ROLE_KEY}"
+          } > .env.local
+      - run: pnpm install --frozen-lockfile
+      - name: Pre-build setup
+        if: inputs.pre-build != ''
+        env:
+          PRE_BUILD: ${{ inputs.pre-build }}
+        run: bash -c "$PRE_BUILD"
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm build
+      - run: pnpm e2e
+      - name: Upload Playwright report and traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+      - name: Dump server logs on failure
+        if: failure()
+        env:
+          PID: ${{ inputs.supabase-project-id }}
+        run: |
+          for svc in kong rest auth; do
+            echo "===== $svc ====="
+            docker logs "supabase_${svc}_${PID}" --tail 40 2>&1 || true
+          done
