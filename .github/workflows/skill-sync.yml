@@ -1,0 +1,48 @@
+name: skill-sync (reusable)
+
+# Syncs a repo's skill package folder out to its dedicated standalone skill
+# repo, opening a PR there. Called by metis and kairos; the source folder is
+# read from the caller repo's skill-sync.config.json, so only the destination
+# and bot identity are parameters.
+on:
+  workflow_call:
+    inputs:
+      target-repo:
+        description: Standalone skill repo to sync into (under `owner`).
+        required: true
+        type: string
+      git-name:
+        required: true
+        type: string
+      git-email:
+        required: true
+        type: string
+      owner:
+        description: Org/user that owns the target skill repo.
+        required: false
+        type: string
+        default: TheKimDevs
+    secrets:
+      SKILL_SYNC_APP_ID:
+        required: true
+      SKILL_SYNC_APP_PRIVATE_KEY:
+        required: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.SKILL_SYNC_APP_ID }}
+          private-key: ${{ secrets.SKILL_SYNC_APP_PRIVATE_KEY }}
+          owner: ${{ inputs.owner }}
+          repositories: ${{ inputs.target-repo }}
+      - name: Sync skill and open a PR in ${{ inputs.target-repo }}
+        uses: docker://ghcr.io/kerubi-5/skill-sync:latest
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          SKILL_SYNC_GIT_NAME: ${{ inputs.git-name }}
+          SKILL_SYNC_GIT_EMAIL: ${{ inputs.git-email }}
