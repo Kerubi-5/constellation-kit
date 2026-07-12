@@ -1,9 +1,0 @@
-{
-  "name": "@constellation/config",
-  "version": "0.1.0",
-  "type": "module",
-  "description": "Shared base config for constellation apps (metis, kairos).",
-  "exports": {
-    "./tsconfig.base.json": "./tsconfig.base.json"
-  }
-}

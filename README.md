@@ -35,10 +35,8 @@ jobs:
     secrets: inherit
 ```
 
-## Roadmap
+## What's shared (and what deliberately isn't)
 
-- `app-ci.yml`, `release-cli.yml` reusable workflows.
-- `packages/config` — shared ESLint rules, Prettier, tsconfig base (git-installable).
-- `packages/deploy` — `vercel-ignore-build`, `env:check`.
-- `packages/agent-auth` — pure token/envelope/scope-check primitives.
-- Absorb the `skill-sync` docker action source here.
+**Reusable workflows** (`workflow_call`, referenced by path — no npm, no install-time auth) are the durable dedup: the biggest CI duplications (`e2e`, `skill-sync`) now live here once, called by thin per-repo workflows.
+
+**Config/code packages are intentionally NOT here.** A git-dependency on a shared package was tried for the tsconfig base and abandoned: TS's package-subpath `extends` resolves locally but fails in CI under pnpm (`TS6053`), and every other candidate hit similar friction — `vercel-ignore-build` runs before install so it can't import anything, and Prettier's tailwind plugin resolves fragilely across the dep boundary. For rarely-changing config, that's more complexity than the duplication costs. If a shared runtime package ever becomes worth it (e.g. the agent-auth token primitives), publish it to npm via OIDC rather than a git-dep — npm resolution is clean where git-subdir isn't.
