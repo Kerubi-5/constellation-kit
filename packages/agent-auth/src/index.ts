@@ -1,5 +1,7 @@
 import { createHash, randomInt, timingSafeEqual } from "node:crypto"
 
+export * from "./tool-route"
+
 /**
  * constellation-agent-auth — the single source of truth for how a constellation
  * service mints, hashes, and verifies its long-lived agent API tokens
