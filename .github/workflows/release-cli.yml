@@ -1,0 +1,82 @@
+name: release-cli (reusable)
+
+# Publishes a workspace CLI package to npm, then bumps its patch version for the
+# next release. Called by metis (metis-cli) and kairos (kairos-cli). The caller
+# keeps its own `on:` paths trigger; this workflow only holds the shared job.
+#
+# Publish happens BEFORE the bump, so a failed publish (bad token, network, OTP)
+# never drifts package.json ahead of what's actually on npm.
+#
+# Auth: pass the NPM_TOKEN secret to publish with an npm AUTOMATION token; omit
+# it to publish via OIDC trusted publishing (needs a trusted publisher wired on
+# npm for the package, and id-token: write below). An empty NODE_AUTH_TOKEN makes
+# pnpm fall through to the OIDC exchange.
+on:
+  workflow_call:
+    inputs:
+      package:
+        description: pnpm workspace filter of the CLI package to publish (e.g. metis-cli).
+        required: true
+        type: string
+      node-version:
+        required: false
+        type: string
+        default: "22"
+    secrets:
+      NPM_TOKEN:
+        description: npm automation token. Omit to publish via OIDC trusted publishing.
+        required: false
+
+jobs:
+  publish:
+    # Never re-trigger off the bot's own bump commit.
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: release-cli-${{ inputs.package }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      id-token: write # OIDC trusted publishing — used when NPM_TOKEN is absent
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: "pnpm"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build CLI
+        run: pnpm --filter ${{ inputs.package }} build
+
+      # Publish first. OIDC when NODE_AUTH_TOKEN is empty; token auth otherwise.
+      # Any failure stops the job here, before the bump, so the version can't
+      # drift ahead of what's published.
+      - name: Publish to npm
+        run: pnpm --filter ${{ inputs.package }} publish --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # Only reached on a successful publish — prepare the next version.
+      - name: Bump patch for next release
+        run: pnpm --filter ${{ inputs.package }} version patch --no-git-tag-version
+
+      - name: Refresh lockfile
+        run: pnpm install --lockfile-only
+
+      - name: Commit and push version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore(release): bump ${{ inputs.package }} version [skip ci]" || echo "Nothing to bump"
+          git pull --rebase origin ${{ github.ref_name }}
+          git push

@@ -1,0 +1,42 @@
+name: app-ci (reusable)
+
+# Lint / typecheck / test / dead-code / build gate for the Next.js app and its
+# shared workspace. Called by metis and kairos. The caller keeps its own `on:`
+# paths trigger (repo layouts differ); this workflow holds the shared job.
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        required: false
+        type: string
+        default: "22"
+      import-alias-check:
+        description: Run `pnpm imports:alias:check` (kairos enforces import aliases; metis does not).
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: "pnpm"
+      - run: pnpm install --frozen-lockfile
+      - name: Lint
+        run: pnpm lint
+      - name: Format and Type Check
+        run: pnpm check
+      - name: Import aliases check
+        if: ${{ inputs.import-alias-check }}
+        run: pnpm imports:alias:check
+      - name: Tests
+        run: pnpm test
+      - name: Dead code check
+        run: pnpm knip
+      - name: Build
+        run: pnpm build
