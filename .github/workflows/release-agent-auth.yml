@@ -43,6 +43,10 @@ jobs:
       - name: Install
         run: npm ci
 
+      # A regression must never reach npm — tests gate the publish.
+      - name: Test
+        run: npm test
+
       - name: Skip if this version is already published
         id: check
         run: |
