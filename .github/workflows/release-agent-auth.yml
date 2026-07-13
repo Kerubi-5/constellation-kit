@@ -1,0 +1,62 @@
+name: Release agent-auth
+
+# Publishes constellation-agent-auth to npm via OIDC trusted publishing — no
+# NPM_TOKEN, no OTP. Idempotent: it publishes only when packages/agent-auth's
+# version isn't already on npm, so re-runs and non-version changes are no-ops.
+#
+# ── One-time setup (npmjs.com, owner only) ──────────────────────────────────
+# On https://www.npmjs.com/package/constellation-agent-auth → Settings →
+# Trusted Publisher, add a GitHub Actions publisher:
+#   Organization/user: Kerubi-5
+#   Repository:        constellation-kit
+#   Workflow filename: release-agent-auth.yml
+# After that, bumping the version in packages/agent-auth/package.json and
+# merging to main publishes it automatically.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packages/agent-auth/**"
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # OIDC trusted publishing
+    defaults:
+      run:
+        working-directory: packages/agent-auth
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+
+      # Trusted publishing needs npm >= 11.5.1; node 22 ships npm 10.
+      - name: Upgrade npm
+        run: npm install -g npm@^11
+
+      - name: Install
+        run: npm ci
+
+      - name: Skip if this version is already published
+        id: check
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if npm view "constellation-agent-auth@${VERSION}" version >/dev/null 2>&1; then
+            echo "constellation-agent-auth@${VERSION} is already on npm — nothing to publish."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Publishing constellation-agent-auth@${VERSION}."
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # OIDC exchange happens automatically (id-token: write + trusted publisher).
+      # --provenance signs a build attestation (public repo → shown on npm).
+      - name: Publish to npm
+        if: steps.check.outputs.skip == 'false'
+        run: npm publish --access public --provenance
