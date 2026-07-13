@@ -1,0 +1,33 @@
+{
+  "name": "constellation-agent-auth",
+  "version": "0.1.0",
+  "description": "Single source of truth for constellation agent API-token auth: mint, hash, and verify long-lived service tokens.",
+  "keywords": ["auth", "api-token", "sha256"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Kerubi-5/constellation-kit.git",
+    "directory": "packages/agent-auth"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --clean",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.2"
+  }
+}
