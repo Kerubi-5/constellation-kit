@@ -1,0 +1,51 @@
+name: deployment-record-retention (reusable)
+
+# Keeps GitHub's repository Deployments history bounded. This only removes
+# GitHub deployment records; it does not delete the backing Vercel deployments.
+on:
+  workflow_call:
+    inputs:
+      keep:
+        description: Number of newest GitHub deployment records to retain.
+        required: false
+        type: number
+        default: 5
+
+permissions:
+  deployments: write
+
+jobs:
+  prune:
+    name: retain newest ${{ inputs.keep }} deployment records
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      KEEP: ${{ inputs.keep }}
+    steps:
+      - name: Delete older deployment records
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mapfile -t deployment_ids < <(
+            gh api --paginate \
+              "repos/${GITHUB_REPOSITORY}/deployments?per_page=100" \
+              --jq '.[].id'
+          )
+
+          if (( ${#deployment_ids[@]} <= KEEP )); then
+            echo "${#deployment_ids[@]} deployment records found; nothing to prune."
+            exit 0
+          fi
+
+          removed=0
+          for deployment_id in "${deployment_ids[@]:KEEP}"; do
+            gh api --method POST \
+              "repos/${GITHUB_REPOSITORY}/deployments/${deployment_id}/statuses" \
+              -f state=inactive >/dev/null
+            gh api --method DELETE \
+              "repos/${GITHUB_REPOSITORY}/deployments/${deployment_id}" >/dev/null
+            ((removed += 1))
+          done
+
+          echo "Removed ${removed} old deployment record(s); retained ${KEEP}."
